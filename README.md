@@ -44,11 +44,12 @@
 - **Node-015**: 合并去重分支
 - **Node-009.5**: 返回循环
 
-#### 第2批节点-Part2（🔨 待实现）- AI分析与存储层
-- **Node-016-017**: DeepSeek AI分析
-- **Node-018**: 格式化输出
-- **Node-018.5**: 更新采集进度
-- **Node-019**: 批量写入Google Sheets
+#### 第2批节点-Part2（✅ 已完成）- AI分析与收集层
+- **Node-015**: DeepSeek AI分析（6维度智能分析）⭐
+- **Node-016**: 合并AI结果（三层容错机制）⭐
+- **Node-017**: 格式化输出（27列标准格式）⭐
+- **Node-018**: 收集账号数据（账号级统计）
+- **Node-018.5**: 更新采集进度（进度追踪）⭐
 
 ## 📁 项目结构
 
@@ -57,7 +58,8 @@ douyincaiju/
 ├── docs/                          # 设计文档
 │   ├── deployment.md              # 完整部署指南
 │   ├── n8n-import-guide.md        # n8n工作流导入指南
-│   └── batch2-nodes-guide.md      # 第2批节点实现指南
+│   ├── batch2-nodes-guide.md      # 第2批-Part1实现指南（API采集+去重）
+│   └── batch2-part2-guide.md      # 第2批-Part2实现指南（AI分析+收集）
 ├── workflows/                     # n8n工作流文件
 │   ├── douyin-collector-batch1.json      # 第1批节点工作流
 │   └── douyin-collector-complete.json    # 完整工作流（含第2批）
@@ -68,10 +70,13 @@ douyincaiju/
 │   ├── node-005.6-smart-filter.js        # 智能过滤
 │   ├── node-007-batch-info.js            # 批次信息
 │   ├── node-008-smart-delay.js           # 智能延迟
-│   ├── node-010b-full-api.js             # 全量API（第2批）
-│   ├── node-011-data-cleaning.js         # 数据清洗（第2批）
-│   ├── node-013b-id-dedup.js             # ID去重（第2批）
-│   └── node-014-similarity-dedup.js      # 相似度去重（第2批）
+│   ├── node-010b-full-api.js             # 全量API（第2批-Part1）
+│   ├── node-011-data-cleaning.js         # 数据清洗（第2批-Part1）
+│   ├── node-013b-id-dedup.js             # ID去重（第2批-Part1）
+│   ├── node-014-similarity-dedup.js      # 相似度去重（第2批-Part1）
+│   ├── node-016-merge-ai-results.js      # 合并AI结果（第2批-Part2）
+│   ├── node-017-format-output.js         # 格式化输出（第2批-Part2）
+│   └── node-018-collect-accounts.js      # 收集账号数据（第2批-Part2）
 ├── templates/                     # 配置模板
 │   └── google-sheets-template.md
 ├── QUICKSTART.md                  # 5分钟快速开始
@@ -191,13 +196,64 @@ Jaccard相似度 = |A ∩ B| / |A ∪ B| = 85% → 判定为重复
 - 页间延迟：1-2秒随机
 - 错误处理：首页失败抛错，后续页失败继续
 
-### 7. 数据清洗转换 (第2批新增)
+### 7. 数据清洗转换 (第2批-Part1新增)
 
 - **数据扩展**：1个账号 → N个视频（数据结构转换）
 - **字段标准化**：40+标准字段输出
 - **字幕合并**：将subtitle_infos数组合并为单个文本
 - **互动率计算**：`(like + comment + share) / play`
 - **元数据附加**：批次ID、采集时间、账号信息等
+
+### 8. DeepSeek AI智能分析 ⭐ (第2批-Part2新增)
+
+#### 6维度深度分析
+- **内容类型**: 教程/产品展示/故事叙述/测评对比/直播带货
+- **茶叶品类**: 绿茶/红茶/乌龙茶/普洱/白茶/花茶/综合
+- **卖点信息**: 自动提取3-5个核心卖点
+- **目标受众**: 年龄段、消费水平、兴趣特征
+- **行动召唤**: 识别视频中的CTA（Call to Action）
+- **质量评分**: 1-10分AI评分（内容专业度、信息价值、制作质量、吸引力）
+
+#### 三层容错机制
+```javascript
+// 第1层：检查响应结构
+if (!data.choices?.[0]?.message?.content) {
+  throw new Error('AI响应为空');
+}
+
+// 第2层：JSON解析
+try {
+  aiAnalysis = JSON.parse(aiContent);
+} catch {
+  aiAnalysis = defaultValues; // 使用默认值
+}
+
+// 第3层：字段验证
+if (!aiAnalysis.content_type) {
+  aiAnalysis.content_type = "未知";
+}
+```
+
+#### 成本控制
+- **单条视频**: $0.00007（0.007美分）
+- **2000条视频**: $0.14（14美分）
+- **每月120K条**: $8.4
+- **极低成本**：适合大规模批量分析
+
+### 9. 标准化输出 (第2批-Part2新增)
+
+#### 27列标准格式
+- **基础信息**（7列）: 视频ID、账号名称、视频标题、发布时间等
+- **互动数据**（7列）: 播放量、点赞数、评论数、分享数、收藏数、互动率、点赞率
+- **内容信息**（2列）: 视频文案、话题标签
+- **AI分析结果**（6列）: 内容类型、茶叶品类、卖点信息、目标受众、行动召唤、AI质量评分
+- **元数据**（5列）: 采集时间、批次ID、采集模式、是否重复、去重方法
+
+#### 账号级统计
+- 总计指标：总播放量、总点赞数、总评论数、总分享数、总收藏数
+- 平均指标：平均播放量、平均点赞数、平均互动率、平均质量评分
+- 内容分析：主要内容类型、主要茶叶品类
+- 排序输出：按平均播放量降序
 
 ## 📖 详细文档
 
@@ -207,7 +263,8 @@ Jaccard相似度 = |A ∩ B| / |A ∪ B| = 85% → 判定为重复
   - [部署指南](docs/deployment.md) - 完整部署流程
 
 - **实现指南**
-  - [第2批节点实现指南](docs/batch2-nodes-guide.md) - API采集与去重层详解
+  - [第2批-Part1实现指南](docs/batch2-nodes-guide.md) - API采集与去重层详解
+  - [第2批-Part2实现指南](docs/batch2-part2-guide.md) - AI分析与收集层详解
   - [Google Sheets模板](templates/google-sheets-template.md) - 配置表结构
 
 - **节点代码**
@@ -248,11 +305,12 @@ Jaccard相似度 = |A ∩ B| / |A ∪ B| = 85% → 判定为重复
 
 - [x] 第1批节点实现（Node-001到Node-009）- 触发与控制层
 - [x] 第2批-Part1节点实现（Node-010到Node-015）- API采集与去重层
+- [x] 第2批-Part2节点实现（Node-015到Node-018.5）- AI分析与收集层
 - [x] n8n工作流JSON生成（batch1 + complete）
-- [x] 节点代码文件（10个JavaScript文件）
+- [x] 节点代码文件（13个JavaScript文件）
 - [x] 部署文档（QUICKSTART + deployment + n8n-import）
-- [x] 第2批节点实现指南（batch2-nodes-guide）
-- [ ] 第2批-Part2节点实现（Node-016到Node-019）- AI分析与存储层
+- [x] 实现指南（batch2-nodes-guide + batch2-part2-guide）
+- [ ] 数据写入层实现（批量写入Google Sheets）
 - [ ] 完整的单元测试
 - [ ] 性能优化与压力测试
 
