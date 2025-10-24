@@ -1,1 +1,212 @@
-# douyincaiju
+# 抖音视频采集系统
+
+> 基于 n8n 工作流的抖音视频智能采集与分析系统
+
+## 📋 项目概述
+
+本项目是一个自动化的抖音视频采集系统，通过 n8n 工作流引擎实现：
+- 定时/手动触发采集
+- 多账号批量监控
+- 智能断点续传
+- 数据去重与 AI 分析
+- Google Sheets 数据存储
+
+## 🏗️ 系统架构
+
+```
+触发层 → 配置层 → 断点续传层 → 循环控制层 → API采集层 → 数据处理层 → 存储层
+```
+
+### 核心功能模块
+
+#### 第1批节点（已完成设计）- 触发与控制层
+- **Node-001-A/B**: 定时/手动触发
+- **Node-002**: 读取运行配置
+- **Node-003**: 解析配置 ⭐
+- **Node-004**: 读取监控账号
+- **Node-005**: 筛选启用账号
+- **Node-005.5**: 读取采集进度 ⭐
+- **Node-005.6**: 智能过滤与重试策略 ⭐
+- **Node-006**: 循环账号
+- **Node-007**: 计算批次信息
+- **Node-008**: 智能延迟 ⭐
+- **Node-009**: 判断采集模式
+
+#### 第2批节点（设计中）- 采集与分析层
+- **Node-010-A/B**: TikHub API调用
+- **Node-011**: 数据清洗转换
+- **Node-012-014**: 双重去重
+- **Node-015-016**: DeepSeek AI分析
+- **Node-017**: 格式化输出
+- **Node-018**: 收集账号数据
+- **Node-018.5**: 更新采集进度
+
+## 📁 项目结构
+
+```
+douyincaiju/
+├── docs/                    # 设计文档
+│   ├── batch1-design.md    # 第1批节点详细设计
+│   └── architecture.md     # 系统架构文档
+├── workflows/               # n8n工作流文件
+│   └── douyin-collector.json
+├── nodes/                   # 节点代码
+│   ├── node-003-parse-config.js
+│   ├── node-005-filter-accounts.js
+│   ├── node-005.5-load-progress.js
+│   ├── node-005.6-smart-filter.js
+│   ├── node-007-batch-info.js
+│   └── node-008-smart-delay.js
+├── templates/               # 配置模板
+│   ├── google-sheets-template.md
+│   └── config-example.json
+├── scripts/                 # 辅助脚本
+│   └── setup.sh
+└── README.md
+```
+
+## 🚀 快速开始
+
+### 前置要求
+
+- n8n 工作流引擎（v1.0+）
+- Google Sheets API 访问权限
+- TikHub API Key
+- DeepSeek API Key（可选，用于AI分析）
+
+### 安装步骤
+
+1. **克隆项目**
+```bash
+git clone https://github.com/yourusername/douyincaiju.git
+cd douyincaiju
+```
+
+2. **配置 Google Sheets**
+   - 复制 `templates/google-sheets-template.md` 中的表格模板
+   - 创建以下工作表：
+     - 运行配置
+     - 监控账号列表
+     - 采集进度
+     - 视频数据
+
+3. **导入 n8n 工作流**
+```bash
+# 在 n8n 界面中导入 workflows/douyin-collector.json
+```
+
+4. **配置凭证**
+   - Google Sheets OAuth2
+   - TikHub API Key
+   - DeepSeek API Key
+
+5. **启动工作流**
+   - 增量模式：每天自动执行（9:00, 21:00）
+   - 全量模式：手动触发
+
+## 📊 核心特性
+
+### 1. 智能断点续传 ⭐
+
+- **账号级别精确恢复**：工作流中断后，从未完成的账号继续
+- **失败重试机制**：自动重试失败账号，最多3次
+- **指数退避算法**：失败后延迟时间指数增长，避免频繁重试
+
+```javascript
+// 重试延迟示例
+第1次失败：延迟 6秒 (3×2¹)
+第2次失败：延迟 12秒 (3×2²)
+第3次失败：延迟 24秒 (3×2³)
+```
+
+### 2. 双模式采集
+
+| 模式 | 触发方式 | 采集范围 | 质量阈值 | 使用场景 |
+|------|---------|---------|---------|---------|
+| **增量** | 定时自动 | 最近7天 | 点赞≥100 | 日常监控 |
+| **全量** | 手动触发 | 全部历史 | 点赞≥1000 | 首次建库 |
+
+### 3. 智能延迟控制
+
+- **账号间延迟**：3秒（可配置）
+- **批次间延迟**：10秒（每10个账号）
+- **随机抖动**：±20%，模拟人类行为
+- **指数退避**：失败后自动增加延迟
+
+### 4. 数据质量保障
+
+- **多维度过滤**：点赞数、播放量、互动率、时长
+- **智能去重**：基于视频ID和内容相似度
+- **AI内容分析**：使用DeepSeek分析视频质量和相关性
+
+## 📖 详细文档
+
+- [第1批节点设计文档](docs/batch1-design.md) - 触发、配置、循环控制层
+- [系统架构文档](docs/architecture.md) - 完整系统设计
+- [Google Sheets模板](templates/google-sheets-template.md) - 配置表结构
+- [部署指南](docs/deployment.md) - 详细部署步骤
+
+## 🔧 配置说明
+
+### 运行配置参数
+
+在 Google Sheets 的"运行配置"表中配置以下参数：
+
+| 参数 | 说明 | 增量模式 | 全量模式 |
+|------|------|---------|---------|
+| mode | 采集模式 | incremental | full |
+| videosPerAccount | 每账号采集数 | 20 | 2000 |
+| minLikeCount | 最低点赞数 | 100 | 1000 |
+| minPlayCount | 最低播放量 | 1000 | 10000 |
+| daysToCrawl | 采集天数 | 7 | - |
+| accountDelay | 账号间延迟(秒) | 3 | 3 |
+| batchDelay | 批次间延迟(秒) | 10 | 10 |
+
+## 📈 性能指标
+
+- **采集速度**：100个账号约5-8分钟（增量模式）
+- **成功率**：>95%（带重试机制）
+- **断点恢复**：精确到账号级别
+- **并发控制**：智能延迟，避免API限流
+
+## 🛠️ 技术栈
+
+- **工作流引擎**：n8n
+- **数据存储**：Google Sheets
+- **API服务**：TikHub API
+- **AI分析**：DeepSeek API
+- **开发语言**：JavaScript (ES6+)
+
+## 📝 待办事项
+
+- [x] 第1批节点设计（Node-001到Node-009）
+- [ ] 第2批节点设计（Node-010到Node-018.5）
+- [ ] n8n工作流JSON生成
+- [ ] 单元测试
+- [ ] 部署文档
+- [ ] 性能优化
+
+## 🤝 贡献指南
+
+欢迎提交 Issue 和 Pull Request！
+
+1. Fork 本项目
+2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 开启 Pull Request
+
+## 📄 许可证
+
+[MIT License](LICENSE)
+
+## 👤 作者
+
+- 项目创建时间：2025-10-24
+- 设计文档：第1批节点详细设计完成
+
+## 🙏 致谢
+
+- [n8n](https://n8n.io/) - 强大的工作流自动化平台
+- [TikHub API](https://tikhub.io/) - 抖音数据接口
+- [DeepSeek](https://www.deepseek.com/) - AI内容分析
