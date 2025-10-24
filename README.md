@@ -78,7 +78,8 @@ douyincaiju/
 │   └── batch3-part2-guide.md      # 第3批-Part2实现指南（通知+清理+结束）
 ├── workflows/                     # n8n工作流文件
 │   ├── douyin-collector-batch1.json      # 第1批节点工作流
-│   └── douyin-collector-complete.json    # 完整工作流（含第2批）
+│   ├── douyin-collector-complete.json    # 完整工作流（含第2批）
+│   └── douyin-collector-full.json        # 完整工作流（含所有25个节点）✨ 新增
 ├── nodes/                         # 节点代码（JavaScript）
 │   ├── node-003-parse-config.js          # 解析配置
 │   ├── node-005-filter-accounts.js       # 筛选账号
@@ -511,6 +512,7 @@ const trend = history.slice(-3).map(h => h.lastVideosCollected);
 
 - **快速开始**
   - [5分钟快速开始](QUICKSTART.md) - 最快上手指南
+  - [完整工作流导入指南](docs/workflow-import-guide.md) - 完整25节点工作流导入配置 ⭐ 新增
   - [n8n工作流导入指南](docs/n8n-import-guide.md) - 工作流导入步骤
   - [部署指南](docs/deployment.md) - 完整部署流程
 
@@ -561,17 +563,17 @@ const trend = history.slice(-3).map(h => h.lastVideosCollected);
 - [x] 第2批-Part1节点实现（Node-010到Node-015）- API采集与去重层
 - [x] 第2批-Part2节点实现（Node-015到Node-018.5）- AI分析与收集层
 - [x] 第3批-Part1节点实现（Node-019到Node-021）- 数据写入与错误处理层
-- [x] 第3批-Part2节点实现（Node-022到Node-024）- 通知、清理与结束层 ⭐ 新完成
-- [x] n8n工作流JSON生成（batch1 + complete）
-- [x] 节点代码文件（19个JavaScript文件） ⭐ 更新
-- [x] 部署文档（QUICKSTART + deployment + n8n-import）
-- [x] 实现指南（6个完整指南） ⭐ 更新
+- [x] 第3批-Part2节点实现（Node-022到Node-024）- 通知、清理与结束层
+- [x] 完整n8n工作流JSON（含所有25个节点）⭐ 新完成
+- [x] 工作流导入配置指南 ⭐ 新完成
+- [x] 节点代码文件（19个JavaScript文件）
+- [x] 部署文档（QUICKSTART + deployment + n8n-import + workflow-import）⭐ 更新
+- [x] 实现指南（6个完整指南）
 - [x] 批量数据写入（Auto-Map模式，375倍性能提升）
 - [x] 智能错误处理（6类错误×4级严重程度）
-- [x] 多渠道通知系统（邮件/企业微信/Webhook）⭐ 新完成
-- [x] 智能清理机制（防止内存泄漏，保存历史记录）⭐ 新完成
-- [x] 执行摘要与趋势分析 ⭐ 新完成
-- [ ] 完整n8n工作流JSON（含第3批所有节点）
+- [x] 多渠道通知系统（邮件/企业微信/Webhook）
+- [x] 智能清理机制（防止内存泄漏，保存历史记录）
+- [x] 执行摘要与趋势分析
 - [ ] 完整的单元测试
 - [ ] 性能优化与压力测试
 
