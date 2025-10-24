@@ -51,6 +51,13 @@
 - **Node-018**: 收集账号数据（账号级统计）
 - **Node-018.5**: 更新采集进度（进度追踪）⭐
 
+#### 第3批节点-Part1（✅ 已完成）- 数据写入与错误处理层
+- **Node-019**: 写入视频数据到Sheets（批量写入27列）⭐
+- **Node-020**: 写入账号数据到Sheets（批量写入17列）
+- **Node-021-A**: 错误触发器（Error Trigger）
+- **Node-021-B**: 格式化错误信息（6类错误×4个严重程度）⭐
+- **Node-021-C**: 写入错误日志到Sheets（15列错误日志）
+
 ## 📁 项目结构
 
 ```
@@ -59,7 +66,8 @@ douyincaiju/
 │   ├── deployment.md              # 完整部署指南
 │   ├── n8n-import-guide.md        # n8n工作流导入指南
 │   ├── batch2-nodes-guide.md      # 第2批-Part1实现指南（API采集+去重）
-│   └── batch2-part2-guide.md      # 第2批-Part2实现指南（AI分析+收集）
+│   ├── batch2-part2-guide.md      # 第2批-Part2实现指南（AI分析+收集）
+│   └── batch3-part1-guide.md      # 第3批-Part1实现指南（数据写入+错误处理）
 ├── workflows/                     # n8n工作流文件
 │   ├── douyin-collector-batch1.json      # 第1批节点工作流
 │   └── douyin-collector-complete.json    # 完整工作流（含第2批）
@@ -76,7 +84,8 @@ douyincaiju/
 │   ├── node-014-similarity-dedup.js      # 相似度去重（第2批-Part1）
 │   ├── node-016-merge-ai-results.js      # 合并AI结果（第2批-Part2）
 │   ├── node-017-format-output.js         # 格式化输出（第2批-Part2）
-│   └── node-018-collect-accounts.js      # 收集账号数据（第2批-Part2）
+│   ├── node-018-collect-accounts.js      # 收集账号数据（第2批-Part2）
+│   └── node-021b-format-error.js         # 格式化错误信息（第3批-Part1）
 ├── templates/                     # 配置模板
 │   └── google-sheets-template.md
 ├── QUICKSTART.md                  # 5分钟快速开始
@@ -255,6 +264,71 @@ if (!aiAnalysis.content_type) {
 - 内容分析：主要内容类型、主要茶叶品类
 - 排序输出：按平均播放量降序
 
+### 10. 批量数据写入 ⭐ (第3批-Part1新增)
+
+#### 高性能批量写入
+- **Node-019**: 批量写入视频数据（27列）
+  - Auto-Map自动字段映射
+  - 单次API调用写入所有数据
+  - 2000条视频仅需3.1秒
+  - 性能提升375倍（vs 逐条写入12.5分钟）
+
+- **Node-020**: 批量写入账号统计（17列）
+  - 账号级别聚合数据
+  - 按平均播放量降序输出
+  - 快速识别优质账号
+
+#### Google Sheets配置
+```javascript
+// Auto-Map模式：自动匹配字段名与列名
+操作: Append
+数据模式: Auto-Map Columns
+字段匹配: 自动识别JSON字段名
+```
+
+### 11. 智能错误处理系统 ⭐ (第3批-Part1新增)
+
+#### 6大错误分类
+1. **权限问题**: API Key无效、授权失败、访问被拒
+2. **网络问题**: 连接超时、DNS错误、连接被拒
+3. **配额限制**: API配额耗尽、请求频率超限
+4. **资源不存在**: 文档未找到、Sheet不存在、列名错误
+5. **数据格式错误**: JSON解析失败、字段格式错误、数据缺失
+6. **其他错误**: 未分类的错误
+
+#### 4级严重程度判定
+- **Critical（致命）**: API认证失败、权限被拒 → 🚨 立即暂停工作流
+- **High（严重）**: 数据写入失败、API错误 → ⚠️ 24小时内修复
+- **Medium（中等）**: 超时、配额限制 → 稍后重试
+- **Low（轻微）**: 临时性错误 → 自动恢复
+
+#### 智能解决方案建议
+```javascript
+// 根据错误分类和严重程度自动生成解决建议
+权限问题 + Critical:
+  🚨 紧急处理：
+  1. 检查Google账号权限
+  2. 重新授权n8n
+  3. 确认API Key有效
+  建议：立即暂停工作流，修复后再启动
+
+网络问题 + Medium:
+  1. 检查网络连接
+  2. 稍后重试
+  3. 检查防火墙设置
+```
+
+#### 错误频率追踪
+- 统计同类错误发生次数
+- 频繁错误（≥3次）自动提升严重程度
+- 15列详细错误日志（错误时间、节点、分类、严重程度、建议方案等）
+
+#### Error Trigger自动捕获
+- 捕获工作流中任何节点的错误
+- 无需手动try-catch
+- 自动记录上下文数据
+- 异步处理不阻塞主流程
+
 ## 📖 详细文档
 
 - **快速开始**
@@ -265,6 +339,7 @@ if (!aiAnalysis.content_type) {
 - **实现指南**
   - [第2批-Part1实现指南](docs/batch2-nodes-guide.md) - API采集与去重层详解
   - [第2批-Part2实现指南](docs/batch2-part2-guide.md) - AI分析与收集层详解
+  - [第3批-Part1实现指南](docs/batch3-part1-guide.md) - 数据写入与错误处理层详解
   - [Google Sheets模板](templates/google-sheets-template.md) - 配置表结构
 
 - **节点代码**
@@ -306,11 +381,14 @@ if (!aiAnalysis.content_type) {
 - [x] 第1批节点实现（Node-001到Node-009）- 触发与控制层
 - [x] 第2批-Part1节点实现（Node-010到Node-015）- API采集与去重层
 - [x] 第2批-Part2节点实现（Node-015到Node-018.5）- AI分析与收集层
+- [x] 第3批-Part1节点实现（Node-019到Node-021）- 数据写入与错误处理层
 - [x] n8n工作流JSON生成（batch1 + complete）
-- [x] 节点代码文件（13个JavaScript文件）
+- [x] 节点代码文件（14个JavaScript文件）
 - [x] 部署文档（QUICKSTART + deployment + n8n-import）
-- [x] 实现指南（batch2-nodes-guide + batch2-part2-guide）
-- [ ] 数据写入层实现（批量写入Google Sheets）
+- [x] 实现指南（batch2-nodes-guide + batch2-part2-guide + batch3-part1-guide）
+- [x] 批量数据写入（Auto-Map模式，375倍性能提升）
+- [x] 智能错误处理（6类错误×4级严重程度）
+- [ ] 第3批-Part2节点实现（通知、清理、工作流结束）
 - [ ] 完整的单元测试
 - [ ] 性能优化与压力测试
 
