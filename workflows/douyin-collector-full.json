@@ -1,0 +1,1208 @@
+{
+  "name": "抖音视频采集系统（完整版）",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9,21 * * *"
+            }
+          ]
+        }
+      },
+      "id": "001a",
+      "name": "001-A: 定时触发",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {},
+      "id": "001b",
+      "name": "001-B: 手动触发",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [240, 480]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "list",
+          "cachedResultName": "抖音采集配置表"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "运行配置"
+        },
+        "options": {}
+      },
+      "id": "002",
+      "name": "002: 读取运行配置",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.2,
+      "position": [460, 390],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_CREDENTIALS_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================\n// Node-003: 解析配置\n// ============================================\n// 从代码文件加载\nconst fs = require('fs');\nconst code = fs.readFileSync('/home/user/douyincaiju/nodes/node-003-parse-config.js', 'utf8');\neval(code);"
+      },
+      "id": "003",
+      "name": "003: 解析配置",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 390]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "list"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=1",
+          "mode": "list",
+          "cachedResultName": "监控账号列表"
+        },
+        "options": {}
+      },
+      "id": "004",
+      "name": "004: 读取监控账号",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.2,
+      "position": [900, 390],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_CREDENTIALS_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================\n// Node-005: 筛选启用账号\n// ============================================\nconst fs = require('fs');\nconst code = fs.readFileSync('/home/user/douyincaiju/nodes/node-005-filter-accounts.js', 'utf8');\neval(code);"
+      },
+      "id": "005",
+      "name": "005: 筛选启用账号",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 390]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "list"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=2",
+          "mode": "list",
+          "cachedResultName": "采集进度"
+        },
+        "options": {}
+      },
+      "id": "005.5",
+      "name": "005.5: 读取采集进度",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.2,
+      "position": [1340, 390],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_CREDENTIALS_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================\n// Node-005.6: 智能过滤与重试策略\n// ============================================\nconst fs = require('fs');\nconst code = fs.readFileSync('/home/user/douyincaiju/nodes/node-005.6-smart-filter.js', 'utf8');\neval(code);"
+      },
+      "id": "005.6",
+      "name": "005.6: 智能过滤",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1560, 390]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "006",
+      "name": "006: 循环账号",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [1780, 390]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================\n// Node-007: 计算批次信息\n// ============================================\nconst fs = require('fs');\nconst code = fs.readFileSync('/home/user/douyincaiju/nodes/node-007-batch-info.js', 'utf8');\neval(code);"
+      },
+      "id": "007",
+      "name": "007: 计算批次信息",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2000, 390]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================\n// Node-008: 智能延迟\n// ============================================\nconst fs = require('fs');\nconst code = fs.readFileSync('/home/user/douyincaiju/nodes/node-008-smart-delay.js', 'utf8');\neval(code);"
+      },
+      "id": "008",
+      "name": "008: 智能延迟",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2220, 390]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "mode-check",
+              "leftValue": "={{ $workflow.staticData.config.mode }}",
+              "rightValue": "incremental",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "009",
+      "name": "009: 判断采集模式",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2440, 390]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.tikhub.io/api/v1/douyin/app/v1/fetch_user_post_videos",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "sec_user_id",
+              "value": "={{ $json.sec_user_id }}"
+            },
+            {
+              "name": "count",
+              "value": "={{ $workflow.staticData.config.videosPerAccount }}"
+            },
+            {
+              "name": "days",
+              "value": "={{ $workflow.staticData.config.daysToCrawl }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "010a",
+      "name": "010-A: 增量采集API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2660, 280],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YOUR_TIKHUB_CREDENTIALS_ID",
+          "name": "TikHub API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================\n// Node-010-B: 全量采集API（分页循环）\n// ============================================\nconst fs = require('fs');\nconst code = fs.readFileSync('/home/user/douyincaiju/nodes/node-010b-full-api.js', 'utf8');\neval(code);"
+      },
+      "id": "010b",
+      "name": "010-B: 全量采集API",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2660, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================\n// Node-011: 数据清洗转换\n// ============================================\nconst fs = require('fs');\nconst code = fs.readFileSync('/home/user/douyincaiju/nodes/node-011-data-cleaning.js', 'utf8');\neval(code);"
+      },
+      "id": "011",
+      "name": "011: 数据清洗",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2880, 390]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "dedup-check",
+              "leftValue": "={{ $workflow.staticData.config.enableDeduplication }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "012",
+      "name": "012: 判断是否去重",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [3100, 390]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "list"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=3",
+          "mode": "list",
+          "cachedResultName": "视频数据"
+        },
+        "options": {
+          "range": "A:A"
+        }
+      },
+      "id": "013a",
+      "name": "013-A: 读取已有视频ID",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.2,
+      "position": [3320, 280],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_CREDENTIALS_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================\n// Node-013-B: ID去重\n// ============================================\nconst fs = require('fs');\nconst code = fs.readFileSync('/home/user/douyincaiju/nodes/node-013b-id-dedup.js', 'utf8');\neval(code);"
+      },
+      "id": "013b",
+      "name": "013-B: ID去重",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3540, 280]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================\n// Node-014: 相似度去重\n// ============================================\nconst fs = require('fs');\nconst code = fs.readFileSync('/home/user/douyincaiju/nodes/node-014-similarity-dedup.js', 'utf8');\neval(code);"
+      },
+      "id": "014",
+      "name": "014: 相似度去重",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3760, 280]
+    },
+    {
+      "parameters": {},
+      "id": "015",
+      "name": "015: 合并去重分支",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [3980, 390]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.deepseek.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"deepseek-chat\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"你是一个抖音视频内容分析专家，专门分析茶叶相关视频。请分析视频并返回JSON格式结果，包含：content_type(内容类型), tea_category(茶叶品类), selling_points(卖点), target_audience(目标受众), call_to_action(行动召唤), quality_score(质量评分1-10)。\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"分析这个视频：标题【{{ $json.videoTitle }}】，文案【{{ $json.videoDesc }}】，标签【{{ $json.videoTags }}】\"\n    }\n  ],\n  \"response_format\": { \"type\": \"json_object\" },\n  \"temperature\": 0.3\n}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "016",
+      "name": "016: DeepSeek AI分析",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [4200, 390],
+      "continueOnFail": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YOUR_DEEPSEEK_CREDENTIALS_ID",
+          "name": "DeepSeek API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================\n// Node-017: 合并AI结果\n// ============================================\nconst fs = require('fs');\nconst code = fs.readFileSync('/home/user/douyincaiju/nodes/node-016-merge-ai-results.js', 'utf8');\neval(code);"
+      },
+      "id": "017",
+      "name": "017: 合并AI结果",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [4420, 390]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================\n// Node-018: 格式化输出数据\n// ============================================\nconst fs = require('fs');\nconst code = fs.readFileSync('/home/user/douyincaiju/nodes/node-017-format-output.js', 'utf8');\neval(code);"
+      },
+      "id": "018",
+      "name": "018: 格式化输出",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [4640, 390]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================\n// Node-019: 收集账号数据\n// ============================================\nconst fs = require('fs');\nconst code = fs.readFileSync('/home/user/douyincaiju/nodes/node-018-collect-accounts.js', 'utf8');\neval(code);"
+      },
+      "id": "019",
+      "name": "019: 收集账号数据",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [4860, 390]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "list"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=2",
+          "mode": "list",
+          "cachedResultName": "采集进度"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "018.5",
+      "name": "018.5: 更新采集进度",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.2,
+      "position": [5080, 390],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_CREDENTIALS_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "009.5",
+      "name": "009.5: 返回循环",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [5300, 390]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "list"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=3",
+          "mode": "list",
+          "cachedResultName": "视频数据"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "020",
+      "name": "020: 写入视频数据",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.2,
+      "position": [5520, 390],
+      "continueOnFail": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_CREDENTIALS_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "list"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=4",
+          "mode": "list",
+          "cachedResultName": "账号统计"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "021",
+      "name": "021: 写入账号数据",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.2,
+      "position": [5740, 390],
+      "continueOnFail": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_CREDENTIALS_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "021a",
+      "name": "021-A: 错误触发器",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [5520, 650]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================\n// Node-021-B: 格式化错误信息\n// ============================================\nconst fs = require('fs');\nconst code = fs.readFileSync('/home/user/douyincaiju/nodes/node-021b-format-error.js', 'utf8');\neval(code);"
+      },
+      "id": "021b",
+      "name": "021-B: 格式化错误",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [5740, 650]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "list"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=5",
+          "mode": "list",
+          "cachedResultName": "错误日志"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "021c",
+      "name": "021-C: 写入错误日志",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.2,
+      "position": [5960, 650],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_CREDENTIALS_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "022-merge",
+      "name": "022: 合并通知分支",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [6180, 520]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================\n// Node-022-A: 构建邮件内容\n// ============================================\nconst fs = require('fs');\nconst code = fs.readFileSync('/home/user/douyincaiju/nodes/node-022a-email-notification.js', 'utf8');\neval(code);"
+      },
+      "id": "022a",
+      "name": "022-A: 构建邮件内容",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [6400, 420]
+    },
+    {
+      "parameters": {
+        "fromEmail": "noreply@yourdomain.com",
+        "toEmail": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "emailType": "html",
+        "message": "={{ $json.html }}",
+        "options": {}
+      },
+      "id": "022a-send",
+      "name": "022-A: 发送邮件",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [6620, 420],
+      "credentials": {
+        "smtp": {
+          "id": "YOUR_SMTP_CREDENTIALS_ID",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================\n// Node-022-B: 构建企业微信消息\n// ============================================\nconst fs = require('fs');\nconst code = fs.readFileSync('/home/user/douyincaiju/nodes/node-022b-wechat-notification.js', 'utf8');\neval(code);"
+      },
+      "id": "022b",
+      "name": "022-B: 构建企业微信消息",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [6400, 560]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=YOUR_WECHAT_WEBHOOK_KEY",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "022b-send",
+      "name": "022-B: 发送企业微信",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [6620, 560]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================\n// Node-022-C: 构建Webhook数据\n// ============================================\nconst fs = require('fs');\nconst code = fs.readFileSync('/home/user/douyincaiju/nodes/node-022c-webhook-notification.js', 'utf8');\neval(code);"
+      },
+      "id": "022c",
+      "name": "022-C: 构建Webhook数据",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [6400, 700]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://your-system.com/api/notifications",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 10000,
+          "retry": {
+            "maxTries": 3,
+            "waitBetweenTries": 5000
+          }
+        }
+      },
+      "id": "022c-send",
+      "name": "022-C: 发送Webhook",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [6620, 700],
+      "continueOnFail": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YOUR_WEBHOOK_CREDENTIALS_ID",
+          "name": "Webhook API"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "023-merge",
+      "name": "023: 合并通知结果",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [6840, 560]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================\n// Node-023: 清理临时数据\n// ============================================\nconst fs = require('fs');\nconst code = fs.readFileSync('/home/user/douyincaiju/nodes/node-023-cleanup.js', 'utf8');\neval(code);"
+      },
+      "id": "024",
+      "name": "024: 清理临时数据",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [7060, 560]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================\n// Node-024: 工作流正常结束\n// ============================================\nconst fs = require('fs');\nconst code = fs.readFileSync('/home/user/douyincaiju/nodes/node-024-workflow-end.js', 'utf8');\neval(code);"
+      },
+      "id": "025",
+      "name": "025: 工作流结束",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [7280, 560]
+    }
+  ],
+  "connections": {
+    "001-A: 定时触发": {
+      "main": [
+        [
+          {
+            "node": "002: 读取运行配置",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "001-B: 手动触发": {
+      "main": [
+        [
+          {
+            "node": "002: 读取运行配置",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "002: 读取运行配置": {
+      "main": [
+        [
+          {
+            "node": "003: 解析配置",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "003: 解析配置": {
+      "main": [
+        [
+          {
+            "node": "004: 读取监控账号",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "004: 读取监控账号": {
+      "main": [
+        [
+          {
+            "node": "005: 筛选启用账号",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "005: 筛选启用账号": {
+      "main": [
+        [
+          {
+            "node": "005.5: 读取采集进度",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "005.5: 读取采集进度": {
+      "main": [
+        [
+          {
+            "node": "005.6: 智能过滤",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "005.6: 智能过滤": {
+      "main": [
+        [
+          {
+            "node": "006: 循环账号",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "006: 循环账号": {
+      "main": [
+        [
+          {
+            "node": "007: 计算批次信息",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "020: 写入视频数据",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "007: 计算批次信息": {
+      "main": [
+        [
+          {
+            "node": "008: 智能延迟",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "008: 智能延迟": {
+      "main": [
+        [
+          {
+            "node": "009: 判断采集模式",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "009: 判断采集模式": {
+      "main": [
+        [
+          {
+            "node": "010-A: 增量采集API",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "010-B: 全量采集API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "010-A: 增量采集API": {
+      "main": [
+        [
+          {
+            "node": "011: 数据清洗",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "010-B: 全量采集API": {
+      "main": [
+        [
+          {
+            "node": "011: 数据清洗",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "011: 数据清洗": {
+      "main": [
+        [
+          {
+            "node": "012: 判断是否去重",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "012: 判断是否去重": {
+      "main": [
+        [
+          {
+            "node": "013-A: 读取已有视频ID",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "015: 合并去重分支",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "013-A: 读取已有视频ID": {
+      "main": [
+        [
+          {
+            "node": "013-B: ID去重",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "013-B: ID去重": {
+      "main": [
+        [
+          {
+            "node": "014: 相似度去重",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "014: 相似度去重": {
+      "main": [
+        [
+          {
+            "node": "015: 合并去重分支",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "015: 合并去重分支": {
+      "main": [
+        [
+          {
+            "node": "016: DeepSeek AI分析",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "016: DeepSeek AI分析": {
+      "main": [
+        [
+          {
+            "node": "017: 合并AI结果",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "017: 合并AI结果": {
+      "main": [
+        [
+          {
+            "node": "018: 格式化输出",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "018: 格式化输出": {
+      "main": [
+        [
+          {
+            "node": "019: 收集账号数据",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "019: 收集账号数据": {
+      "main": [
+        [
+          {
+            "node": "018.5: 更新采集进度",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "018.5: 更新采集进度": {
+      "main": [
+        [
+          {
+            "node": "009.5: 返回循环",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "009.5: 返回循环": {
+      "main": [
+        [
+          {
+            "node": "006: 循环账号",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "020: 写入视频数据": {
+      "main": [
+        [
+          {
+            "node": "021: 写入账号数据",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "021: 写入账号数据": {
+      "main": [
+        [
+          {
+            "node": "022: 合并通知分支",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "021-A: 错误触发器": {
+      "main": [
+        [
+          {
+            "node": "021-B: 格式化错误",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "021-B: 格式化错误": {
+      "main": [
+        [
+          {
+            "node": "021-C: 写入错误日志",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "021-C: 写入错误日志": {
+      "main": [
+        [
+          {
+            "node": "022: 合并通知分支",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "022: 合并通知分支": {
+      "main": [
+        [
+          {
+            "node": "022-A: 构建邮件内容",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "022-B: 构建企业微信消息",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "022-C: 构建Webhook数据",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "022-A: 构建邮件内容": {
+      "main": [
+        [
+          {
+            "node": "022-A: 发送邮件",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "022-A: 发送邮件": {
+      "main": [
+        [
+          {
+            "node": "023: 合并通知结果",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "022-B: 构建企业微信消息": {
+      "main": [
+        [
+          {
+            "node": "022-B: 发送企业微信",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "022-B: 发送企业微信": {
+      "main": [
+        [
+          {
+            "node": "023: 合并通知结果",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "022-C: 构建Webhook数据": {
+      "main": [
+        [
+          {
+            "node": "022-C: 发送Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "022-C: 发送Webhook": {
+      "main": [
+        [
+          {
+            "node": "023: 合并通知结果",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "023: 合并通知结果": {
+      "main": [
+        [
+          {
+            "node": "024: 清理临时数据",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "024: 清理临时数据": {
+      "main": [
+        [
+          {
+            "node": "025: 工作流结束",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 2,
+  "updatedAt": "2025-10-24T00:00:00.000Z",
+  "versionId": "1.0.0"
+}

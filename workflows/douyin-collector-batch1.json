@@ -1,0 +1,556 @@
+{
+  "name": "抖音视频采集系统 - 第1批节点",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 9
+            },
+            {
+              "triggerAtHour": 21
+            }
+          ]
+        }
+      },
+      "id": "001a-schedule-trigger",
+      "name": "001-A: 定时触发(增量模式)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "001b-manual-trigger",
+      "name": "001-B: 手动触发(全量模式)",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        240,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "url",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "运行配置"
+        },
+        "options": {
+          "range": "A2:C18"
+        }
+      },
+      "id": "002-read-config",
+      "name": "002: 读取运行配置",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.2,
+      "position": [
+        460,
+        390
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "1",
+          "name": "Google Sheets OAuth2"
+        }
+      },
+      "notes": "从Google Sheets读取16个系统运行参数\n\n配置说明：\n1. 需要配置Google Sheets OAuth2凭证\n2. documentId填入你的表格URL\n3. 确保工作表名称为\"运行配置\"\n4. Range: A2:C18 包含16行参数数据"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================\n// Node-003: 解析配置\n// ============================================\n// 功能：\n// 1. 将配置数组转换为config对象\n// 2. 进行类型转换（字符串→数字/布尔）\n// 3. 验证必填参数\n// 4. 存储到workflow static data\n// 5. 添加元数据（批次标识、时间戳等）\n// ============================================\n\nconst items = $input.all();\n\nconsole.log(`📊 开始解析配置，共 ${items.length} 个参数`);\n\n// ============================================\n// 1. 转换配置数组为对象\n// ============================================\nconst configArray = items.map(item => item.json);\nconst config = {};\n\nconfigArray.forEach(item => {\n  const key = item['参数名'];\n  let value = item['参数值'];\n\n  // 类型转换\n  // 数字类型\n  if (['videosPerAccount', 'minLikeCount_incremental', 'minLikeCount_full',\n       'minPlayCount_incremental', 'minPlayCount_full', 'minDuration',\n       'maxDuration', 'daysToCrawl', 'dedupDays', 'accountDelay',\n       'batchDelay', 'maxRetries'].includes(key)) {\n    value = parseInt(value);\n  }\n  // 浮点数类型\n  else if (['minInteractionRate_incremental', 'minInteractionRate_full',\n            'similarityThreshold'].includes(key)) {\n    value = parseFloat(value);\n  }\n  // 布尔类型\n  else if (key === 'enableDedup') {\n    value = value === 'TRUE' || value === true;\n  }\n\n  config[key] = value;\n});\n\nconsole.log(`✅ 配置解析完成：${JSON.stringify(config, null, 2)}`);\n\n// ============================================\n// 2. 验证必填参数\n// ============================================\nconst requiredParams = [\n  'mode', 'videosPerAccount', 'minLikeCount_incremental',\n  'minLikeCount_full', 'minPlayCount_incremental', 'minPlayCount_full',\n  'minDuration', 'maxDuration', 'daysToCrawl', 'enableDedup',\n  'accountDelay', 'batchDelay', 'maxRetries'\n];\n\nconst missingParams = requiredParams.filter(param => !config.hasOwnProperty(param));\n\nif (missingParams.length > 0) {\n  const error = `❌ 缺少必填参数: ${missingParams.join(', ')}`;\n  console.error(error);\n  throw new Error(error);\n}\n\nconsole.log(`✅ 参数验证通过，所有必填参数齐全`);\n\n// ============================================\n// 3. 添加元数据\n// ============================================\nconst now = new Date();\nconst batchId = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}-${config.mode}`;\n\nconfig.batchId = batchId;\nconfig.startTime = now.toISOString();\nconfig.accountsPerBatch = 10;  // 固定值：每10个账号批量写入一次\n\nconsole.log(`📅 批次标识: ${batchId}`);\nconsole.log(`⏰ 开始时间: ${config.startTime}`);\n\n// ============================================\n// 4. 根据mode选择对应的质量阈值\n// ============================================\nif (config.mode === 'incremental') {\n  config.minLikeCount = config.minLikeCount_incremental;\n  config.minPlayCount = config.minPlayCount_incremental;\n  config.minInteractionRate = config.minInteractionRate_incremental;\n  console.log(`🔄 使用增量模式阈值: 点赞≥${config.minLikeCount}, 播放≥${config.minPlayCount}`);\n} else if (config.mode === 'full') {\n  config.minLikeCount = config.minLikeCount_full;\n  config.minPlayCount = config.minPlayCount_full;\n  config.minInteractionRate = config.minInteractionRate_full;\n  console.log(`📦 使用全量模式阈值: 点赞≥${config.minLikeCount}, 播放≥${config.minPlayCount}`);\n} else {\n  throw new Error(`❌ 无效的mode值: ${config.mode}，必须是incremental或full`);\n}\n\n// ============================================\n// 5. 存储到workflow static data\n// ============================================\n// 关键：存储后所有节点都能访问，无需在数据流中携带\n$workflow.staticData.config = config;\n\nconsole.log(`💾 配置已存储到 workflow.staticData.config`);\nconsole.log(`✅ Node-003 执行完成\\n`);\n\n// ============================================\n// 6. 返回简化的输出（只包含关键信息）\n// ============================================\nreturn [{\n  json: {\n    mode: config.mode,\n    batchId: config.batchId,\n    startTime: config.startTime,\n    videosPerAccount: config.videosPerAccount,\n    minLikeCount: config.minLikeCount,\n    minPlayCount: config.minPlayCount,\n    accountsPerBatch: config.accountsPerBatch,\n    message: \"配置解析完成，已存储到static data\"\n  }\n}];"
+      },
+      "id": "003-parse-config",
+      "name": "003: 解析配置",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        390
+      ],
+      "notes": "核心节点：解析配置参数\n\n功能：\n1. 类型转换（字符串→数字/布尔）\n2. 验证必填参数\n3. 存储到static data供所有节点使用\n4. 根据mode自动选择质量阈值\n5. 生成批次标识（batchId）"
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "url",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "监控账号列表"
+        },
+        "options": {
+          "range": "A2:E101"
+        }
+      },
+      "id": "004-read-accounts",
+      "name": "004: 读取监控账号",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.2,
+      "position": [
+        900,
+        390
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "1",
+          "name": "Google Sheets OAuth2"
+        }
+      },
+      "notes": "读取待监控的抖音账号列表\n\n字段说明：\n- 序号：账号序号\n- 账号昵称：抖音昵称\n- sec_uid：账号唯一标识（必填）\n- 分类：自定义分类标签\n- 启用状态：TRUE/FALSE\n\nRange: A2:E101 = 100个账号"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================\n// Node-005: 筛选启用账号\n// ============================================\n// 功能：\n// 1. 过滤启用状态为TRUE的账号\n// 2. 数据清洗和格式化\n// 3. 验证必填字段\n// 4. 统计账号数量\n// ============================================\n\nconst items = $input.all();\n\nconsole.log(`📊 开始筛选账号，总数: ${items.length}`);\n\n// ============================================\n// 1. 过滤和清洗账号数据\n// ============================================\nconst enabledAccounts = items\n  .map(item => item.json)\n  .filter(account => {\n    // 过滤条件：启用状态为TRUE\n    const isEnabled = account['启用状态'] === 'TRUE' || account['启用状态'] === true;\n\n    if (!isEnabled) {\n      console.log(`⏭️  跳过禁用账号: ${account['账号昵称']}`);\n      return false;\n    }\n\n    // 验证必填字段\n    if (!account['sec_uid'] || !account['账号昵称']) {\n      console.warn(`⚠️  账号数据不完整，已跳过: ${JSON.stringify(account)}`);\n      return false;\n    }\n\n    return true;\n  })\n  .map((account, index) => {\n    // 格式化账号数据（使用英文字段名）\n    return {\n      index: index + 1,  // 重新编号（从1开始）\n      accountName: account['账号昵称'].trim(),\n      secUid: account['sec_uid'].trim(),\n      category: account['分类'] || '未分类',\n      originalIndex: parseInt(account['序号']) || index + 1,\n\n      // 不在这里添加config，由后续节点从static data读取\n    };\n  });\n\nconsole.log(`✅ 筛选完成，启用账号数: ${enabledAccounts.length}`);\n\n// ============================================\n// 2. 验证账号列表\n// ============================================\nif (enabledAccounts.length === 0) {\n  const error = '❌ 没有启用的账号，请检查\"监控账号列表\"中的启用状态';\n  console.error(error);\n  throw new Error(error);\n}\n\n// ============================================\n// 3. 输出统计信息\n// ============================================\nconst stats = {\n  totalAccounts: items.length,\n  enabledAccounts: enabledAccounts.length,\n  disabledAccounts: items.length - enabledAccounts.length,\n  categories: {}\n};\n\n// 统计各分类账号数\nenabledAccounts.forEach(account => {\n  const cat = account.category;\n  stats.categories[cat] = (stats.categories[cat] || 0) + 1;\n});\n\nconsole.log(`\\n📊 账号统计:`);\nconsole.log(`  总账号数: ${stats.totalAccounts}`);\nconsole.log(`  启用: ${stats.enabledAccounts}`);\nconsole.log(`  禁用: ${stats.disabledAccounts}`);\nconsole.log(`  分类统计: ${JSON.stringify(stats.categories, null, 2)}`);\n\n// ============================================\n// 4. 返回启用的账号列表\n// ============================================\nconsole.log(`✅ Node-005 执行完成\\n`);\n\nreturn enabledAccounts.map(account => ({\n  json: account\n}));"
+      },
+      "id": "005-filter-accounts",
+      "name": "005: 筛选启用账号",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        390
+      ],
+      "notes": "过滤和清洗账号数据\n\n功能：\n1. 只保留启用状态=TRUE的账号\n2. 验证必填字段（secUid, 昵称）\n3. 数据清洗（去空格、默认值）\n4. 字段名标准化（中文→英文）\n5. 重新编号（从1开始）"
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "url",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "采集进度"
+        },
+        "options": {
+          "range": "A2:H"
+        }
+      },
+      "id": "0055a-read-progress",
+      "name": "005.5-A: 读取采集进度",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        580
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "1",
+          "name": "Google Sheets OAuth2"
+        }
+      },
+      "notes": "读取历史采集进度数据\n\n字段说明：\n- 账号昵称\n- sec_uid\n- 采集状态：未开始/进行中/已完成/失败\n- 已采集视频数\n- 最后采集时间\n- 批次标识\n- 失败次数\n- 错误信息\n\n用于断点续传和失败重试"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================\n// Node-005.5-B: 合并采集进度\n// ============================================\n// 功能：\n// 1. 获取账号列表（来自Node-005）\n// 2. 获取采集进度表（来自Node-005.5-A）\n// 3. 为每个账号附加progress对象\n// 4. 构建完整的账号+进度数据\n// ============================================\n\n// 获取输入数据（使用n8n的多输入功能）\n// 输入1：账号列表（来自Node-005）\n// 输入2：采集进度表（来自Node-005.5-A）\n\nconst accountsInput = $('005: 筛选启用账号').all();  // 账号列表\nconst progressInput = $('005.5-A: 读取采集进度').all();  // 采集进度表\n\nconsole.log(`📊 开始合并采集进度`);\nconsole.log(`  账号数量: ${accountsInput.length}`);\nconsole.log(`  进度记录数: ${progressInput.length}`);\n\n// ============================================\n// 1. 将进度表转换为Map（以secUid为key）\n// ============================================\nconst progressMap = new Map();\n\nif (progressInput && progressInput.length > 0) {\n  progressInput.forEach(item => {\n    const progress = item.json;\n    const secUid = progress['sec_uid'] || progress['secUid'];\n\n    if (secUid) {\n      progressMap.set(secUid, {\n        status: progress['采集状态'] || progress['status'] || '未开始',\n        videosCollected: parseInt(progress['已采集视频数']) || 0,\n        lastCrawlTime: progress['最后采集时间'] || null,\n        batchId: progress['批次标识'] || null,\n        failureCount: parseInt(progress['失败次数']) || 0,\n        errorMessage: progress['错误信息'] || null\n      });\n    }\n  });\n\n  console.log(`✅ 进度表解析完成，有效记录: ${progressMap.size}`);\n} else {\n  console.log(`⚠️  采集进度表为空，所有账号将视为\"未开始\"`);\n}\n\n// ============================================\n// 2. 从static data读取config\n// ============================================\nconst config = $workflow.staticData.config;\n\nif (!config) {\n  throw new Error('❌ 无法从static data读取config，请检查Node-003');\n}\n\nconsole.log(`📦 当前模式: ${config.mode}`);\nconsole.log(`📅 批次标识: ${config.batchId}`);\n\n// ============================================\n// 3. 为每个账号附加progress对象\n// ============================================\nconst accountsWithProgress = accountsInput.map(item => {\n  const account = item.json;\n  const secUid = account.secUid;\n\n  // 从progressMap中查找该账号的历史状态\n  const historicalProgress = progressMap.get(secUid);\n\n  if (historicalProgress) {\n    // 有历史记录\n    console.log(`  📌 ${account.accountName}: ${historicalProgress.status}, 失败${historicalProgress.failureCount}次`);\n\n    return {\n      ...account,\n      progress: {\n        hasHistory: true,\n        status: historicalProgress.status,\n        videosCollected: historicalProgress.videosCollected,\n        lastCrawlTime: historicalProgress.lastCrawlTime,\n        lastBatchId: historicalProgress.batchId,\n        failureCount: historicalProgress.failureCount,\n        errorMessage: historicalProgress.errorMessage\n      }\n    };\n  } else {\n    // 无历史记录，首次采集\n    console.log(`  🆕 ${account.accountName}: 首次采集`);\n\n    return {\n      ...account,\n      progress: {\n        hasHistory: false,\n        status: '未开始',\n        videosCollected: 0,\n        lastCrawlTime: null,\n        lastBatchId: null,\n        failureCount: 0,\n        errorMessage: null\n      }\n    };\n  }\n});\n\n// ============================================\n// 4. 统计各状态账号数量\n// ============================================\nconst statusStats = {\n  未开始: 0,\n  进行中: 0,\n  已完成: 0,\n  失败: 0\n};\n\naccountsWithProgress.forEach(account => {\n  const status = account.progress.status;\n  if (statusStats.hasOwnProperty(status)) {\n    statusStats[status]++;\n  }\n});\n\nconsole.log(`\\n📊 账号状态统计:`);\nconsole.log(`  未开始: ${statusStats['未开始']}`);\nconsole.log(`  进行中: ${statusStats['进行中']}`);\nconsole.log(`  已完成: ${statusStats['已完成']}`);\nconsole.log(`  失败: ${statusStats['失败']}`);\nconsole.log(`✅ Node-005.5 执行完成\\n`);\n\n// ============================================\n// 5. 返回带进度的账号列表\n// ============================================\nreturn accountsWithProgress.map(account => ({\n  json: account\n}));"
+      },
+      "id": "0055b-merge-progress",
+      "name": "005.5-B: 合并采集进度",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        390
+      ],
+      "notes": "断点续传核心节点\n\n功能：\n1. 合并账号列表和采集进度\n2. 为每个账号附加progress对象\n3. 包含历史状态、失败次数等信息\n\n注意：\n- 需要连接两个输入\n- 使用Map提升查找性能"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================\n// Node-005.6: 智能过滤与重试策略\n// ============================================\n// 功能：\n// 1. 根据mode和status决定是否处理账号\n// 2. 实现智能重试机制\n// 3. 过滤出需要采集的账号列表\n// 4. 标记跳过和放弃的账号\n// ============================================\n\nconst items = $input.all();\n\nconsole.log(`📊 开始智能过滤，总账号数: ${items.length}`);\n\n// ============================================\n// 1. 从static data读取config\n// ============================================\nconst config = $workflow.staticData.config;\n\nif (!config) {\n  throw new Error('❌ 无法从static data读取config');\n}\n\nconst mode = config.mode;\nconst maxRetries = config.maxRetries || 3;\n\nconsole.log(`📦 当前模式: ${mode}`);\nconsole.log(`🔄 最大重试次数: ${maxRetries}`);\n\n// ============================================\n// 2. 定义过滤规则\n// ============================================\nconst filterRules = {\n  // ✅ 总是需要处理的情况\n  shouldProcess: (account) => {\n    const status = account.progress.status;\n    const failureCount = account.progress.failureCount;\n\n    // 规则1：未开始 → 总是处理\n    if (status === '未开始') {\n      return { process: true, reason: '首次采集' };\n    }\n\n    // 规则2：进行中 → 总是处理（可能是上次中断）\n    if (status === '进行中') {\n      return { process: true, reason: '继续未完成的采集' };\n    }\n\n    // 规则3：已完成\n    if (status === '已完成') {\n      if (mode === 'incremental') {\n        // 增量模式：即使已完成也要处理（每天都采集新视频）\n        return { process: true, reason: '增量模式：采集新视频' };\n      } else {\n        // 全量模式：已完成就跳过\n        return { process: false, reason: '全量模式：已采集完成' };\n      }\n    }\n\n    // 规则4：失败\n    if (status === '失败') {\n      if (failureCount >= maxRetries) {\n        // 失败次数≥3：放弃\n        return { process: false, reason: `失败${failureCount}次，已放弃` };\n      } else {\n        // 失败次数<3：重试\n        return { process: true, reason: `失败${failureCount}次，准备重试` };\n      }\n    }\n\n    // 默认：不处理\n    return { process: false, reason: '未知状态' };\n  }\n};\n\n// ============================================\n// 3. 过滤账号并标记\n// ============================================\nconst filteredAccounts = [];\nconst skippedAccounts = [];\nconst abandonedAccounts = [];\n\nitems.forEach(item => {\n  const account = item.json;\n  const decision = filterRules.shouldProcess(account);\n\n  if (decision.process) {\n    // 需要处理\n    filteredAccounts.push({\n      ...account,\n      processingReason: decision.reason\n    });\n    console.log(`  ✅ ${account.accountName}: ${decision.reason}`);\n  } else {\n    // 跳过或放弃\n    if (account.progress.failureCount >= maxRetries) {\n      abandonedAccounts.push(account);\n      console.log(`  ❌ ${account.accountName}: ${decision.reason}`);\n    } else {\n      skippedAccounts.push(account);\n      console.log(`  ⏭️  ${account.accountName}: ${decision.reason}`);\n    }\n  }\n});\n\n// ============================================\n// 4. 输出统计信息\n// ============================================\nconsole.log(`\\n📊 过滤结果统计:`);\nconsole.log(`  需要处理: ${filteredAccounts.length}`);\nconsole.log(`  跳过: ${skippedAccounts.length}`);\nconsole.log(`  放弃: ${abandonedAccounts.length}`);\n\n// ============================================\n// 5. 验证结果\n// ============================================\nif (filteredAccounts.length === 0) {\n  console.warn(`⚠️  没有需要处理的账号`);\n  console.log(`\\n详细情况:`);\n  console.log(`  总账号数: ${items.length}`);\n  console.log(`  跳过账号: ${skippedAccounts.map(a => a.accountName).join(', ')}`);\n  console.log(`  放弃账号: ${abandonedAccounts.map(a => a.accountName).join(', ')}`);\n\n  // 如果是全量模式且所有账号都已完成，这是正常的\n  if (mode === 'full' && skippedAccounts.length === items.length) {\n    console.log(`\\n✅ 全量模式：所有账号已采集完成，无需再次执行`);\n  }\n\n  // 返回空数组，后续节点会跳过\n  return [];\n}\n\nconsole.log(`\\n✅ Node-005.6 执行完成`);\nconsole.log(`📝 将处理 ${filteredAccounts.length} 个账号\\n`);\n\n// ============================================\n// 6. 返回需要处理的账号列表\n// ============================================\nreturn filteredAccounts.map(account => ({\n  json: account\n}));"
+      },
+      "id": "0056-smart-filter",
+      "name": "005.6: 智能过滤与重试",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        390
+      ],
+      "notes": "智能过滤与重试策略\n\n决策规则：\n- 未开始 → 处理\n- 进行中 → 处理\n- 已完成 → 增量模式处理，全量模式跳过\n- 失败<3次 → 重试\n- 失败≥3次 → 放弃\n\n返回需要处理的账号列表"
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "006-loop-accounts",
+      "name": "006: 循环账号",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1780,
+        390
+      ],
+      "notes": "循环处理每个账号\n\n配置：\n- Batch Size = 1（每次处理1个账号）\n- 每个账号完成后返回继续下一个\n\n循环变量：\n- $itemIndex: 当前索引（从0开始）\n- $totalItems: 总账号数"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================\n// Node-007: 计算批次信息\n// ============================================\n// 功能：\n// 1. 从static data读取config\n// 2. 计算当前账号的批次编号\n// 3. 计算进度百分比\n// 4. 判断是否需要批次延迟\n// 5. 为当前账号添加批次信息\n// ============================================\n\nconst account = $input.first().json;\n\n// ============================================\n// 1. 获取循环变量\n// ============================================\nconst currentIndex = $itemIndex;  // 当前索引（从0开始）\nconst totalAccounts = $totalItems;  // 总账号数\n\nconsole.log(`\\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);\nconsole.log(`📊 正在处理第 ${currentIndex + 1}/${totalAccounts} 个账号`);\nconsole.log(`   账号名称: ${account.accountName}`);\nconsole.log(`   处理原因: ${account.processingReason}`);\n\n// ============================================\n// 2. 从static data读取config\n// ============================================\nconst config = $workflow.staticData.config;\n\nif (!config) {\n  throw new Error('❌ 无法从static data读取config');\n}\n\nconst accountsPerBatch = config.accountsPerBatch || 10;  // 每批账号数\n\n// ============================================\n// 3. 计算批次信息\n// ============================================\n// 批次编号（从1开始）\nconst batchNumber = Math.floor(currentIndex / accountsPerBatch) + 1;\n\n// 批次内的位置（从1开始）\nconst positionInBatch = (currentIndex % accountsPerBatch) + 1;\n\n// 是否是批次的第一个账号\nconst isFirstInBatch = positionInBatch === 1;\n\n// 是否是批次的最后一个账号\nconst isLastInBatch = positionInBatch === accountsPerBatch || (currentIndex === totalAccounts - 1);\n\n// 是否是所有账号的最后一个\nconst isLastAccount = currentIndex === totalAccounts - 1;\n\nconsole.log(`   批次信息: 第${batchNumber}批，批内第${positionInBatch}/${accountsPerBatch}个`);\n\n// ============================================\n// 4. 计算进度百分比\n// ============================================\nconst progressPercent = Math.round((currentIndex + 1) / totalAccounts * 100);\n\nconsole.log(`   总体进度: ${progressPercent}% (${currentIndex + 1}/${totalAccounts})`);\n\n// ============================================\n// 5. 确定延迟类型\n// ============================================\nlet delayType = 'account';  // 默认：账号间延迟\n\nif (isFirstInBatch && currentIndex > 0) {\n  // 批次的第一个账号（且不是第一个批次）→ 批次间延迟\n  delayType = 'batch';\n  console.log(`   ⏰ 批次切换，将执行批次延迟: ${config.batchDelay}秒`);\n} else if (!isFirstInBatch) {\n  // 批次内的非第一个账号 → 账号间延迟\n  console.log(`   ⏰ 将执行账号延迟: ${config.accountDelay}秒`);\n} else {\n  // 第一个账号，无需延迟\n  console.log(`   ⏰ 首个账号，无需延迟`);\n  delayType = 'none';\n}\n\n// ============================================\n// 6. 构建输出对象\n// ============================================\nconst outputData = {\n  // 原始账号数据\n  ...account,\n\n  // 循环信息\n  loopIndex: currentIndex,\n  loopTotal: totalAccounts,\n\n  // 批次信息\n  batchNumber: batchNumber,\n  positionInBatch: positionInBatch,\n  isFirstInBatch: isFirstInBatch,\n  isLastInBatch: isLastInBatch,\n  isLastAccount: isLastAccount,\n\n  // 进度信息\n  progressPercent: progressPercent,\n\n  // 延迟信息\n  delayType: delayType,  // 'none' | 'account' | 'batch'\n\n  // config（从static data读取，避免在数据流中传递）\n  // 注意：不要在这里添加完整的config对象，后续节点从static data读取\n};\n\nconsole.log(`✅ Node-007 执行完成\\n`);\n\n// ============================================\n// 7. 返回增强后的账号数据\n// ============================================\nreturn [{\n  json: outputData\n}];"
+      },
+      "id": "007-batch-info",
+      "name": "007: 计算批次信息",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        390
+      ],
+      "notes": "计算批次信息和进度\n\n输出字段：\n- batchNumber: 批次编号（从1开始）\n- positionInBatch: 批次内位置\n- progressPercent: 进度百分比\n- delayType: 延迟类型\n- isFirstInBatch/isLastInBatch\n- loopIndex/loopTotal"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================\n// Node-008: 智能延迟\n// ============================================\n// 功能：\n// 1. 根据delayType执行不同的延迟策略\n// 2. 重试时使用指数退避算法\n// 3. 随机化延迟时间，避免规律性请求\n// 4. 输出延迟日志便于监控\n// ============================================\n\nconst account = $input.first().json;\n\n// ============================================\n// 1. 从static data读取config\n// ============================================\nconst config = $workflow.staticData.config;\n\nif (!config) {\n  throw new Error('❌ 无法从static data读取config');\n}\n\nconst accountDelay = config.accountDelay || 3;  // 账号间延迟(秒)\nconst batchDelay = config.batchDelay || 10;      // 批次间延迟(秒)\n\n// ============================================\n// 2. 确定延迟时长\n// ============================================\nlet delaySeconds = 0;\n\nswitch (account.delayType) {\n  case 'none':\n    // 第一个账号，无需延迟\n    delaySeconds = 0;\n    console.log(`⏰ 首个账号，立即开始`);\n    break;\n\n  case 'account':\n    // 账号间延迟\n    delaySeconds = accountDelay;\n    console.log(`⏰ 账号间延迟: ${delaySeconds}秒`);\n    break;\n\n  case 'batch':\n    // 批次间延迟\n    delaySeconds = batchDelay;\n    console.log(`⏰ 批次间延迟: ${delaySeconds}秒`);\n    break;\n\n  default:\n    // 默认使用账号间延迟\n    delaySeconds = accountDelay;\n    console.warn(`⚠️  未知的延迟类型: ${account.delayType}，使用默认延迟`);\n}\n\n// ============================================\n// 3. 重试时使用指数退避\n// ============================================\nconst failureCount = account.progress.failureCount || 0;\n\nif (failureCount > 0) {\n  // 指数退避算法：\n  // 第1次重试：延迟 × 2\n  // 第2次重试：延迟 × 4\n  // 第3次重试：延迟 × 8\n  const backoffMultiplier = Math.pow(2, failureCount);\n  const originalDelay = delaySeconds;\n  delaySeconds = delaySeconds * backoffMultiplier;\n\n  console.log(`🔄 重试账号（第${failureCount}次失败）`);\n  console.log(`   应用指数退避: ${originalDelay}秒 × ${backoffMultiplier} = ${delaySeconds}秒`);\n}\n\n// ============================================\n// 4. 添加随机抖动（±20%）\n// ============================================\nif (delaySeconds > 0) {\n  // 随机因子：0.8 ~ 1.2\n  const jitterFactor = 0.8 + (Math.random() * 0.4);\n  const originalDelay = delaySeconds;\n  delaySeconds = Math.round(delaySeconds * jitterFactor);\n\n  console.log(`🎲 添加随机抖动: ${originalDelay}秒 × ${jitterFactor.toFixed(2)} = ${delaySeconds}秒`);\n}\n\n// ============================================\n// 5. 执行延迟\n// ============================================\nif (delaySeconds > 0) {\n  console.log(`⏱️  开始延迟 ${delaySeconds}秒...`);\n  const startTime = Date.now();\n\n  // 使用Promise实现延迟（n8n兼容方式）\n  await new Promise(resolve => setTimeout(resolve, delaySeconds * 1000));\n\n  const actualDelay = ((Date.now() - startTime) / 1000).toFixed(2);\n  console.log(`✅ 延迟完成，实际用时: ${actualDelay}秒`);\n} else {\n  console.log(`⚡ 无需延迟，立即执行`);\n}\n\n// ============================================\n// 6. 记录延迟信息到输出\n// ============================================\nconst outputData = {\n  ...account,\n\n  // 延迟信息\n  delayInfo: {\n    type: account.delayType,\n    configuredDelay: account.delayType === 'batch' ? batchDelay : accountDelay,\n    actualDelay: delaySeconds,\n    isRetry: failureCount > 0,\n    retryCount: failureCount,\n    hasJitter: delaySeconds > 0\n  }\n};\n\nconsole.log(`✅ Node-008 执行完成\\n`);\n\n// ============================================\n// 7. 返回账号数据（延迟已执行）\n// ============================================\nreturn [{\n  json: outputData\n}];"
+      },
+      "id": "008-smart-delay",
+      "name": "008: 智能延迟",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2220,
+        390
+      ],
+      "notes": "智能延迟控制\n\n策略：\n1. 基础延迟（账号间3秒，批次间10秒）\n2. 指数退避（失败重试时延迟×2^n）\n3. 随机抖动（±20%，模拟人类行为）\n\n延迟后才进入下一节点"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $workflow.staticData.config.mode }}",
+              "value2": "full"
+            }
+          ]
+        }
+      },
+      "id": "009-judge-mode",
+      "name": "009: 判断采集模式",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2440,
+        390
+      ],
+      "notes": "根据mode分流\n\ntrue分支（mode=full）：\n→ Node-010-B（全量采集API）\n\nfalse分支（mode=incremental）：\n→ Node-010-A（增量采集API）\n\n两个分支在后续节点汇合"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "placeholder-full",
+              "name": "message",
+              "value": "全量模式API调用（待实现）",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "010b-full-api-placeholder",
+      "name": "010-B: 全量采集API（占位）",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [
+        2660,
+        300
+      ],
+      "notes": "【占位节点】\n\n全量采集API调用\n将在第2批节点中实现\n\n功能：\n- 调用TikHub API\n- 分页循环请求\n- 采集所有历史视频\n- 质量阈值：点赞≥1000"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "placeholder-incremental",
+              "name": "message",
+              "value": "增量模式API调用（待实现）",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "010a-incremental-api-placeholder",
+      "name": "010-A: 增量采集API（占位）",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [
+        2660,
+        480
+      ],
+      "notes": "【占位节点】\n\n增量采集API调用\n将在第2批节点中实现\n\n功能：\n- 调用TikHub API\n- 单次请求\n- 采集最近7天视频\n- 质量阈值：点赞≥100"
+    },
+    {
+      "parameters": {},
+      "id": "placeholder-merge",
+      "name": "合并分支（占位）",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [
+        2880,
+        390
+      ],
+      "notes": "【占位节点】\n\n合并全量和增量分支的输出\n继续后续处理流程"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "end-placeholder",
+              "name": "status",
+              "value": "第1批节点执行完成，等待第2批节点实现",
+              "type": "string"
+            },
+            {
+              "id": "end-info",
+              "name": "nextSteps",
+              "value": "Node-011: 数据清洗 → Node-012-014: 去重 → Node-015-016: AI分析 → Node-017-018: 格式化输出 → Node-018.5: 更新进度",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "placeholder-end",
+      "name": "第1批完成标记",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [
+        3100,
+        390
+      ],
+      "notes": "【第1批节点完成】\n\n已实现功能：\n✅ 定时/手动触发\n✅ 配置读取和解析\n✅ 账号筛选和清洗\n✅ 断点续传和智能过滤\n✅ 批次计算和智能延迟\n✅ 模式判断和分流\n\n待实现（第2批）：\n⏳ API调用\n⏳ 数据处理\n⏳ AI分析\n⏳ 数据写入"
+    }
+  ],
+  "connections": {
+    "001-A: 定时触发(增量模式)": {
+      "main": [
+        [
+          {
+            "node": "002: 读取运行配置",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "001-B: 手动触发(全量模式)": {
+      "main": [
+        [
+          {
+            "node": "002: 读取运行配置",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "002: 读取运行配置": {
+      "main": [
+        [
+          {
+            "node": "003: 解析配置",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "003: 解析配置": {
+      "main": [
+        [
+          {
+            "node": "004: 读取监控账号",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "004: 读取监控账号": {
+      "main": [
+        [
+          {
+            "node": "005: 筛选启用账号",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "005.5-A: 读取采集进度",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "005: 筛选启用账号": {
+      "main": [
+        [
+          {
+            "node": "005.5-B: 合并采集进度",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "005.5-A: 读取采集进度": {
+      "main": [
+        [
+          {
+            "node": "005.5-B: 合并采集进度",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "005.5-B: 合并采集进度": {
+      "main": [
+        [
+          {
+            "node": "005.6: 智能过滤与重试",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "005.6: 智能过滤与重试": {
+      "main": [
+        [
+          {
+            "node": "006: 循环账号",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "006: 循环账号": {
+      "main": [
+        [
+          {
+            "node": "007: 计算批次信息",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "007: 计算批次信息": {
+      "main": [
+        [
+          {
+            "node": "008: 智能延迟",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "008: 智能延迟": {
+      "main": [
+        [
+          {
+            "node": "009: 判断采集模式",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "009: 判断采集模式": {
+      "main": [
+        [
+          {
+            "node": "010-B: 全量采集API（占位）",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "010-A: 增量采集API（占位）",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "010-B: 全量采集API（占位）": {
+      "main": [
+        [
+          {
+            "node": "合并分支（占位）",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "010-A: 增量采集API（占位）": {
+      "main": [
+        [
+          {
+            "node": "合并分支（占位）",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "合并分支（占位）": {
+      "main": [
+        [
+          {
+            "node": "第1批完成标记",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2025-10-24T00:00:00.000Z",
+      "updatedAt": "2025-10-24T00:00:00.000Z",
+      "id": "1",
+      "name": "抖音采集"
+    }
+  ],
+  "triggerCount": 2,
+  "updatedAt": "2025-10-24T00:00:00.000Z",
+  "versionId": "1"
+}
